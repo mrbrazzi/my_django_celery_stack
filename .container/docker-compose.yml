@@ -1,0 +1,96 @@
+version: "3"
+
+services:
+  my_stack_rabbit:
+    image: my_stack/rabbit
+    build:
+      context: ./rabbitmq
+      dockerfile: Dockerfile
+      args:
+        - TZ=${TIMEZONE}
+    container_name: my_stack_rabbit
+    hostname: my_stack_rabbit
+    privileged: true
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - my_stack_rabbitmq:/var/lib/rabbitmq
+    ports:
+      - "${RABBITMQ_NODE_HOST_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_HTTP_HOST_PORT}:15672"
+      - "${RABBITMQ_MANAGEMENT_HTTPS_HOST_PORT}:15671"
+    networks:
+      - my_stack_backend
+    restart: unless-stopped
+
+  my_stack_celery_beat:
+    image: my_stack/celery_beat
+    build:
+      context: ../
+      dockerfile: .container/celery_beat/Dockerfile
+      args:
+        - PYTHON_VERSION=${PYTHON_VERSION}
+        - TZ=${TIMEZONE}
+        - LOG_LEVEL=${CELERY_LOG_LEVEL_BEAT}
+    container_name: my_stack_celery_beat
+    hostname: my_stack_celery_beat
+    environment:
+      - TIME_ZONE=${TIMEZONE}
+      - LOG_LEVEL=${CELERY_LOG_LEVEL_BEAT}
+    volumes:
+      - ./.shared/local.env:/app/src/.env
+    networks:
+      - my_stack_backend
+    depends_on:
+      - my_stack_celery_worker
+    restart: unless-stopped
+
+  my_stack_celery_worker:
+    image: my_stack/celery_worker
+    build:
+      context: ../
+      dockerfile: .container/celery_worker/Dockerfile
+      args:
+        - PYTHON_VERSION=${PYTHON_VERSION}
+        - TZ=${TIMEZONE}
+        - LOG_LEVEL=${CELERY_LOG_LEVEL_WORKER}
+    container_name: my_stack_celery_worker
+    hostname: my_stack_celery_worker
+    environment:
+      - TIME_ZONE=${TIMEZONE}
+      - LOG_LEVEL=${CELERY_LOG_LEVEL_WORKER}
+    volumes:
+      - ./.shared/local.env:/app/src/.env
+      - ./celery_worker/logs:/app/src/logs
+    networks:
+      - my_stack_backend
+    restart: unless-stopped
+
+  my_stack_celery_browser:
+    image: my_stack/celery_browser
+    build:
+      context: ./flower
+      dockerfile: Dockerfile
+      args:
+        - TZ=${TIMEZONE}
+        - FLOWER_PORT=${FLOWER_PORT}
+    container_name: my_stack_celery_browser
+    hostname: my_stack_celery_browser
+    environment:
+      - CELERY_BROKER_URL=amqp://${CELERY_BROKER_USER}:${CELERY_BROKER_PASSWORD}@${CELERY_BROKER_HOST}:5672//
+    command: --port=${FLOWER_PORT}
+    ports:
+      - "${FLOWER_PORT}:${FLOWER_PORT}"
+    networks:
+      - my_stack_backend
+    depends_on:
+      - my_stack_celery_beat
+      - my_stack_celery_worker
+    restart: unless-stopped
+
+volumes:
+  my_stack_rabbitmq:
+
+networks:
+  my_stack_backend:
