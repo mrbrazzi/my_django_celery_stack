@@ -1,5 +1,5 @@
 # My Stack
-
+Implementation of Producer-Consumer using Docker containers with Django App, Celery Worker & Beat and RabbitMQ.
 
 ## How to setup initial configurations
 
